@@ -1,0 +1,43 @@
+import numpy as np
+
+def sig(x):
+    return 1 / (1 + np.exp(-x))
+
+def error_graveness(x):
+	return 1-(sig(x)*(1-sig(x)))
+
+def test(Input):
+	Input = Input.astype(float)
+	Output = sig(np.dot(Input, weights))
+	print(Output)
+	return round(Output[0],4)
+
+training_inputs = np.array([[1,1,0,1],
+                            [0,1,1,0],
+                            [1,1,0,1],
+                            [1,1,1,1],
+                            [0,1,1,1],
+                            [1,1,0,1]])
+
+training_outputs = np.array([[1,0,1,1,0,1]]).T
+
+weights = 2 * np.random.random((4,1)) - 1
+
+for i in range (10000):
+	outputs = sig(np.dot(training_inputs, weights))
+	error = training_outputs-outputs
+	adjustment = np.dot(training_inputs.T,error* error_graveness(error))
+	weights += adjustment
+
+print('Weights after training: ')
+print(weights)
+
+print("Output After Training:")
+print(outputs)
+
+A = str(input("Input 1: "))
+B = str(input("Input 2: "))
+C = str(input("Input 3: "))
+D = str(input("Input 4: "))
+
+print(test(np.array([A, B, C, D])))
