@@ -1,0 +1,146 @@
+#Version 10.2.0
+import numpy as np
+import csv
+import matplotlib.pyplot as plt
+
+file = 'sin3.csv'
+input_ratio = 5/10									
+test_ratio = 1/10
+training_repetitions = 10000
+
+training_prices = []
+test_prices = []
+
+def getData(filename):
+	temP = []
+	with open(filename, 'r') as csvfile:
+		csvFileReader = csv.reader(csvfile)
+		for row in csvFileReader:
+			temP.append(float(row[0]))
+		test_dataset_size = round(temP.__len__()*test_ratio)
+		input_amount = round(temP.__len__()*input_ratio)
+		print(test_dataset_size)
+	#aufteilen der Datensätze in Trainings und Testdaten
+	for i in range (temP.__len__()):
+		if (i < temP.__len__()-test_dataset_size):
+			training_prices.append(float(temP[i]))
+			test_prices.append(float(temP[i]))
+		else:
+			test_prices.append(float(temP[i]))
+	print('File: ', filename)
+	print('Training data:',training_prices.__len__())
+	print('Testing data:',test_dataset_size)
+	return training_prices, test_prices, input_amount
+
+
+def sig(x):
+	x[x < 10^-100] = 10^-100		#Verhindert das x zu klein ist und in np.exp(-x) einen Overflow verursacht
+	return 1 / (1 + np.exp(-x))		#ausrechnen des Sigmoids für jeden Wert im Array
+
+
+def errorGraveness(x):		#berechnet das Ausmass des Fehlers
+	return 1-(sig(x)*(1-sig(x))*4)
+
+def test(Input):		#Wendet die trainierten Gewichte auf einen TestArray an
+	Input = Input.astype(float)
+	newInput = []
+	for i in range(input_amount):
+		newInput.append(Input[i+1]-Input[i])	#Konvertiert absolute Werte zu deren Differenzen
+	Output = sig(np.dot(newInput, weights))
+	Output = 2*Output -1		#Konvertiert den Output-Bereich von [0,1] zu [-1,1]
+	return Output
+
+
+training_prices, test_prices, input_amount = getData(file)
+len = len(training_prices)
+reps = len-(input_amount)
+
+#----------Vorbereitung der Trainingsdaten---------------------------------
+print('Prepairing Data')
+tempArr = []
+for i in range(input_amount):
+	tempArr = np.append(tempArr,training_prices[i+1]-training_prices[i])	#Erzeugt den ersten Input Datensatz
+training_inputs = np.array([tempArr])					#Fügt den ersten Datensatz in den trainings_inputs Array ein
+#Berechnen des Output für den ersten Datensatz:
+if training_prices[input_amount]-training_prices[input_amount-1] > 0:
+	training_outputs = np.array([[1]])
+elif training_prices[input_amount]-training_prices[input_amount-1] <= 0:
+	training_outputs = np.array([[0]])
+
+training_outputs = np.array([[1]])						#Fügt den Output des ersten Datensatzes in training_outputs ein
+
+for x in range(1, reps):
+	print('Prepairing dataset ', x ,' / ', reps-1)
+	#Füllt Input Array mit den Datensätzen
+	tempArr = []
+	for i in range(input_amount):
+		tempArr = np.append(tempArr,training_prices[x+i]-training_prices[x+i-1])	#den Relativen Wert berechnen und in tempArr speichern
+
+	training_inputs = np.append(training_inputs,[tempArr], axis=0)		#alles in training_inputs speichern
+
+	#Füllt Output Array mit 1(up) und 0(down)
+	if training_prices[x+input_amount]-training_prices[x+input_amount-1] > 0:
+		training_outputs = np.append(training_outputs,[[1]], axis=0)
+	elif training_prices[x+input_amount]-training_prices[x+input_amount-1] <= 0:
+		training_outputs = np.append(training_outputs,[[0]], axis=0)
+
+#Berechnen des testOutputs für den ersten Datensatz:
+if test_prices[training_prices.__len__()]-test_prices[training_prices.__len__()-1] > 0:		
+	testOutput = np.array([[1]])
+elif test_prices[training_prices.__len__()]-test_prices[training_prices.__len__()-1] <= 0:
+	testOutput = np.array([[-1]])
+
+#Füllt testOutput Array mit 1(up) und 0(down)
+for i in range (training_prices.__len__()-input_amount+1, test_prices.__len__()-input_amount):
+	if test_prices[i+input_amount]-test_prices[i+input_amount-1] > 0:
+		testOutput = np.append(testOutput,[[1]], axis=0)
+	elif test_prices[i+input_amount]-test_prices[i+input_amount-1] <= 0:
+		testOutput = np.append(testOutput,[[-1]], axis=0)
+#-----------------------------------------------------------------------------
+
+#Initialisieren der Gewichte (random)
+weights = 2 * np.random.random((input_amount,1)) - 1
+
+#Training
+print('Training model...')
+percentage = 0
+for i in range (training_repetitions):
+	outputs = sig(np.dot(training_inputs, weights))
+	error = training_outputs-outputs
+	adjustment = np.dot(training_inputs.T,error* errorGraveness(error))
+	weights += adjustment
+	if (i%(training_repetitions/10) == 0):
+		percentage += 10
+		print(percentage,'%')
+print('Done!')
+print('Plotting...')
+
+#Zeigt Test_Graphen und Predictions bei allen Punkten
+PredArr = []
+for i in range (training_prices.__len__()-input_amount, test_prices.__len__()-input_amount):
+	TestArr = np.array(test_prices[i-1:input_amount+i])
+	PredArr = np.append(PredArr,test(TestArr))
+	prices3 = np.append(test_prices[:input_amount+i],test_prices[input_amount+i-1]+test(TestArr)*(np.amax(training_prices)-np.amin(training_prices))/300)
+	for a in range(2):
+		prices3 = np.append(prices3,prices3[-1]+test(TestArr)*(np.amax(training_prices)-np.amin(training_prices))/300)
+	plt.plot(prices3, 'r')
+	plt.plot(test_prices, 'g')
+
+#Analyse
+correctPredictions = 0
+PredArrVar = 0
+for i in range(PredArr.__len__()):
+	if PredArr[i] > 0:
+		PredArrVar = 1
+	else:
+		PredArrVar = -1
+	if PredArrVar == testOutput[i]:
+		correctPredictions+=1
+print(round(100*correctPredictions/PredArr.__len__()),'% korrekt vorausgesagt!')
+
+
+
+plt.plot(training_prices, 'b')
+plt.ylabel("Preis")
+plt.xlabel("Tag")
+plt.show()
